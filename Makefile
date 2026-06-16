@@ -1,4 +1,4 @@
-.PHONY: setup test test-frontend test-backend dev-frontend dev-backend build clean
+.PHONY: setup test test-frontend test-backend dev-frontend dev-backend dev build clean
 
 setup:
 	@echo "Setting up dependencies..."
@@ -20,8 +20,17 @@ dev-frontend:
 	cd frontend && npm run dev
 
 dev-backend:
-	@echo "Starting backend server..."
-	cd backend && ./mvnw spring-boot:run
+	@echo "Starting backend server (dev profile)..."
+	cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+
+dev:
+	@echo "Starting both Frontend and Backend concurrently under 'dev' profile..."
+	@bash -c ' \
+		trap "echo \"\nStopping all services...\"; kill 0" SIGINT SIGTERM; \
+		(cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev) & \
+		(cd frontend && npm run dev) & \
+		wait \
+	'
 
 build:
 	@echo "Building application..."

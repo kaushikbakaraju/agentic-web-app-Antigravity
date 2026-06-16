@@ -44,17 +44,15 @@ make setup
 
 ### Running the Application
 
-*   **Start Java Backend**:
+*   **Start Frontend & Backend Concurrently (Dev profile)**:
     ```bash
-    make dev-backend
+    make dev
     ```
-    The backend API runs at `http://localhost:8080`.
+    This single command spins up both services (backend on port `8080` with the `dev` profile, and frontend on port `5173`). Pressing `Ctrl+C` will clean up and shut down both servers.
 
-*   **Start React Frontend**:
-    ```bash
-    make dev-frontend
-    ```
-    The frontend dev server runs at `http://localhost:5173`.
+*   **Or run them separately**:
+    *   **Start Java Backend**: `make dev-backend`
+    *   **Start React Frontend**: `make dev-frontend`
 
 ### Running Tests
 To run all verification suites (frontend and backend):

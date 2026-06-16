@@ -14,6 +14,7 @@ Guidelines, commands, and rules for agents working on this project.
 ### General
 *   **Install All Dependencies**: `make setup`
 *   **Run All Tests**: `make test`
+*   **Run Concurrently (Dev profile)**: `make dev`
 
 ### Frontend (React)
 *   **Install dependencies**: `cd frontend && npm install`
