@@ -1,0 +1,7 @@
+You must read and adhere to the guidelines, commands, and coding styles defined in the project's CLAUDE.md file.
+
+Always remember:
+1. Think before coding: State your assumptions and plans.
+2. Simplicity first: Do not overengineer.
+3. Surgical changes: Only touch what is needed.
+4. Goal-driven: Write/run tests to verify all changes.
