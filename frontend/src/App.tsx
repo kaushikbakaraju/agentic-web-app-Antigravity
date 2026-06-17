@@ -72,8 +72,8 @@ function App() {
   // Fetch from Spring Boot Backend API
   const fetchData = async () => {
     try {
-      const statusRes = await fetch('http://localhost:8080/api/status');
-      const tasksRes = await fetch('http://localhost:8080/api/tasks');
+      const statusRes = await fetch('/api/status');
+      const tasksRes = await fetch('/api/tasks');
       if (statusRes.ok && tasksRes.ok) {
         const statusData = await statusRes.json();
         const tasksData = await tasksRes.json();

@@ -1,0 +1,41 @@
+# ==========================================
+# STAGE 1: Build Frontend React Application
+# ==========================================
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+# ==========================================
+# STAGE 2: Build Backend Spring Boot Jar
+# ==========================================
+FROM eclipse-temurin:21-jdk-jammy AS backend-builder
+WORKDIR /app
+# Copy maven executable wrapper files
+COPY backend/mvnw ./
+COPY backend/mvnw.cmd ./
+COPY backend/.mvn/ .mvn/
+COPY backend/pom.xml ./
+# Resolve dependencies to cache them in docker layer
+RUN ./mvnw dependency:go-offline -B
+# Copy source files
+COPY backend/src ./src
+# Embed built frontend static assets into Spring Boot resources directory
+COPY --from=frontend-builder /app/dist ./src/main/resources/static/
+# Package application jar
+RUN ./mvnw clean package -DskipTests -B
+
+# ==========================================
+# STAGE 3: Final Lightweight Runtime
+# ==========================================
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+# Create non-root user for security
+RUN addgroup -S spring && adduser -S spring -G spring
+USER spring:spring
+# Copy final packaged jar
+COPY --from=backend-builder /app/target/*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
