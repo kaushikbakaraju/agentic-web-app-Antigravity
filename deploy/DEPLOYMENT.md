@@ -1,6 +1,6 @@
 # Cloud Deployment Guide: Google Cloud Run & AWS Fargate
 
-This guide outlines how to deploy the React + Spring Boot application to **Google Cloud Run** and **AWS Fargate** using the configurations in the `deploy/` directory.
+This guide outlines how to deploy the React + Spring Boot application to **Google Cloud Run** and **AWS Fargate** using both CLI-based automation and the web-based cloud consoles.
 
 ---
 
@@ -24,85 +24,125 @@ You have two choices for deployability:
 
 ---
 
-## Guide 1: Google Cloud Run (Recommended & Simplest)
+## CLI-Based One-Click Deployment
 
-Google Cloud Run is a fully-managed serverless platform that runs containers directly.
+We provide an interactive deployment script to automate building and pushing your container.
+Run this from the project root:
+```bash
+make deploy
+```
+This script will:
+1. Ask you to choose **Google Cloud Run** or **AWS Fargate**.
+2. Automatically pull configuration defaults (Project ID, AWS Account, region, etc.).
+3. Build the single-container image and upload it to your cloud registry.
+4. (For Cloud Run) Automatically deploy the service live.
 
-### Step-by-Step (Single Container Deployment)
+---
 
-1.  **Prerequisites**:
-    *   Install the [Google Cloud CLI](https://cloud.google.com/sdk/gcloud).
-    *   Authenticate and set your active project:
-        ```bash
-        gcloud auth login
-        gcloud config set project [YOUR_PROJECT_ID]
-        ```
+## Guide 1: Google Cloud Run
 
-2.  **Submit & Build the Container in Cloud Build**:
-    Run this command from the **root directory** of the project to build the single-container image using Google Cloud Build and store it in Artifact Registry:
+### Option A: Web Console UI (No-Brainer Step-by-Step)
+Use this if you prefer clicking through the Google Cloud Web Console.
+
+1.  **Build and Push your Image**:
+    First, build and submit the image to Artifact Registry so Cloud Run can access it:
     ```bash
-    gcloud builds submit --config=deploy/cloudbuild.yaml --tag gcr.io/[YOUR_PROJECT_ID]/agentic-app:latest .
+    gcloud builds submit --tag gcr.io/[YOUR_PROJECT_ID]/agentic-app:latest --file deploy/Dockerfile.single .
     ```
-    *(Alternatively, if you haven't set up cloudbuild.yaml, you can build directly with Docker: `gcloud builds submit --tag gcr.io/[YOUR_PROJECT_ID]/agentic-app:latest --file deploy/Dockerfile.single .`)*
+2.  **Open the Google Cloud Console**:
+    Navigate to the [Cloud Run Console](https://console.cloud.google.com/run).
+3.  **Create Service**:
+    *   Click the **Create Service** button at the top.
+4.  **Configure Container Image**:
+    *   Select **Deploy one revision from an existing container image**.
+    *   Click **Select** and navigate through your Artifact Registry to select `gcr.io/[YOUR_PROJECT_ID]/agentic-app:latest`.
+5.  **Configure Deployment settings**:
+    *   **Service Name**: Input `agentic-web-app`.
+    *   **Region**: Choose your closest region (e.g., `us-central1`).
+    *   **CPU allocation**: Select **CPU is only allocated during request processing** (cost-saving).
+    *   **Scaling**: Set minimum instances to `0` (scales to zero when inactive to avoid charges) and maximum instances to `5`.
+6.  **Configure Connectivity & Authentication**:
+    *   **Ingress Control**: Select **All** (allows traffic from the public internet).
+    *   **Authentication**: Select **Allow unauthenticated invocations** (so anyone can view your web dashboard).
+7.  **Container Port & Environments (Critical)**:
+    *   Click to expand **Container, Volumes, Networking, Security**.
+    *   Under **Container**, set **Container Port** to `8080` (Spring Boot default).
+    *   Scroll down to **Variables & Secrets** and click **Add Variable**:
+        *   **Name**: `SPRING_PROFILES_ACTIVE`
+        *   **Value**: `prod`
+8.  **Deploy**:
+    *   Click **Create** at the bottom.
+    *   Within 1–2 minutes, Cloud Run will display a green checkmark and provide a public URL (e.g. `https://agentic-web-app-xxx.a.run.app`). Click it to view your live app!
 
-3.  **Deploy to Cloud Run**:
-    Deploy the image:
-    ```bash
-    gcloud run deploy agentic-app \
-      --image gcr.io/[YOUR_PROJECT_ID]/agentic-app:latest \
-      --platform managed \
-      --region us-central1 \
-      --allow-unauthenticated \
-      --port 8080 \
-      --set-env-vars SPRING_PROFILES_ACTIVE=prod
-    ```
-
-4.  **Verification**:
-    Cloud Run will output a service URL (e.g., `https://agentic-app-xyz.a.run.app`). Open this link in your browser.
-    *   The frontend will render immediately.
-    *   Frontend API calls to `/api/...` are processed by the same container. No CORS setup is needed.
+### Option B: CLI Deployment
+```bash
+gcloud run deploy agentic-web-app \
+  --image gcr.io/[YOUR_PROJECT_ID]/agentic-app:latest \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --port 8080 \
+  --set-env-vars SPRING_PROFILES_ACTIVE=prod
+```
 
 ---
 
 ## Guide 2: AWS Fargate (ECS)
 
-AWS Fargate runs containers on Amazon ECS without managing servers.
+### Option A: AWS Web Console UI (No-Brainer Step-by-Step)
+Use this to configure Amazon ECS Fargate via the AWS Web Console.
 
-### Step-by-Step (Single Container Deployment)
+1.  **Build and Push to ECR**:
+    Use `make deploy` (Option 2) to build the image and push it to your AWS Elastic Container Registry (ECR). Note down the resulting Image URI (e.g. `[AWS_ACCOUNT_ID].dkr.ecr.[REGION].amazonaws.com/agentic-web-app-antigravity:latest`).
+2.  **Open the ECS Console**:
+    Navigate to the [Amazon ECS Console](https://console.aws.amazon.com/ecs).
+3.  **Create an ECS Cluster**:
+    *   In the sidebar, click **Clusters**, then click **Create cluster**.
+    *   **Cluster Name**: `agentic-cluster`.
+    *   **Infrastructure**: Select **AWS Fargate** (Serverless).
+    *   Click **Create**.
+4.  **Create a Task Definition (The Blueprint)**:
+    *   In the sidebar, click **Task definitions**, then click **Create new task definition** -> **Create new task definition**.
+    *   **Task definition family name**: `agentic-task`.
+    *   **Launch type**: Select **AWS Fargate**.
+    *   **Operating system/Architecture**: `Linux/X86_64`.
+    *   **Task size**:
+        *   **CPU**: `0.5 vCPU`
+        *   **Memory**: `1 GB`
+    *   **Container details**:
+        *   **Name**: `agentic-container`
+        *   **Image URI**: Paste your ECR Image URI from Step 1.
+        *   **Essential container**: Yes.
+        *   **Port mappings**: Set **Container port** to `8080`, **Protocol** to `TCP`, **Port name** to `http`.
+    *   **Environment variables**:
+        *   Scroll to **Environment variables** inside the container definition.
+        *   Add Key: `SPRING_PROFILES_ACTIVE`, Value: `prod`.
+    *   Click **Create** at the bottom.
+5.  **Deploy Task as a Service (Run it)**:
+    *   Go back to **Clusters** and click on your `agentic-cluster`.
+    *   Under the **Services** tab, click **Deploy**.
+    *   **Deployment configuration**:
+        *   **Application type**: Service.
+        *   **Task definition family**: Select `agentic-task`.
+        *   **Revision**: Select `LATEST`.
+        *   **Service name**: `agentic-service`.
+        *   **Desired tasks**: `1`.
+    *   **Networking**:
+        *   Select your VPC and Subnets.
+        *   **Security group**: Click edit/create new. Make sure it has an Inbound Rule allowing **Custom TCP on Port 8080** from `0.0.0.0/0` (public access).
+        *   **Public IP**: Ensure it is turned **ON** (so you can connect to it).
+    *   Click **Deploy**.
+6.  **Access your application**:
+    *   Once the service status turns to `ACTIVE` and the task status is `RUNNING`, click the **Tasks** tab inside your service.
+    *   Click on the running task ID.
+    *   Copy the **Public IP** under the Configuration section.
+    *   Open `http://[TASK_PUBLIC_IP]:8080` in your browser to view your live app.
 
-1.  **Prerequisites**:
-    *   Install the [AWS CLI](https://aws.amazon.com/cli/) and configure credentials (`aws configure`).
-    *   Create an ECR (Elastic Container Registry) Repository to store your image:
-        ```bash
-        aws ecr create-repository --repository-name agentic-app
-        ```
-
-2.  **Build and Push the Image**:
-    Retrieve an authentication token and authenticate Docker:
-    ```bash
-    aws ecr get-login-password --region [YOUR_REGION] | docker login --username AWS --password-stdin [AWS_ACCOUNT_ID].dkr.ecr.[YOUR_REGION].amazonaws.com
-    ```
-    Build the single container image from the root directory:
-    ```bash
-    docker build -f deploy/Dockerfile.single -t agentic-app .
-    ```
-    Tag and push the image:
-    ```bash
-    docker tag agentic-app:latest [AWS_ACCOUNT_ID].dkr.ecr.[YOUR_REGION].amazonaws.com/agentic-app:latest
-    docker push [AWS_ACCOUNT_ID].dkr.ecr.[YOUR_REGION].amazonaws.com/agentic-app:latest
-    ```
-
-3.  **Configure ECS Task Definition**:
-    *   Create a Task Definition in the ECS Console.
-    *   Set launch type to **FARGATE**.
-    *   Add a container with image URL `[AWS_ACCOUNT_ID].dkr.ecr.[YOUR_REGION].amazonaws.com/agentic-app:latest`.
-    *   Map Port **8080** (TCP).
-    *   Add Environment Variable: `SPRING_PROFILES_ACTIVE=prod`.
-
-4.  **Create ECS Service**:
-    *   Deploy the Task Definition as a Service.
-    *   Configure security groups to open port **8080** (or port **80** on an Application Load Balancer routed to container port **8080**).
-    *   Once launched, access the task public IP or the ALB DNS name.
+### Option B: CLI Deployment
+Refer to the `deploy/deploy.sh` script output or run ECS CLI commands to update your service:
+```bash
+aws ecs update-service --cluster agentic-cluster --service agentic-service --force-new-deployment
+```
 
 ---
 

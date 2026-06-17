@@ -1,4 +1,4 @@
-.PHONY: setup test test-frontend test-backend dev-frontend dev-backend dev build clean
+.PHONY: setup test test-frontend test-backend dev-frontend dev-backend dev build clean deploy
 
 setup:
 	@echo "Setting up dependencies..."
@@ -41,3 +41,7 @@ clean:
 	@echo "Cleaning up build directories..."
 	rm -rf frontend/dist
 	cd backend && ./mvnw clean
+
+deploy:
+	@chmod +x deploy/deploy.sh
+	@./deploy/deploy.sh
